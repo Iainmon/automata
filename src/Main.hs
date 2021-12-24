@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 import Data.List (inits,intercalate)
 import PDA
 import CFG
-
+import qualified PDATests
 
 attach' v f = map (v:) $ f v
 attach'' f vs = (map (foldl (++) []) $ map (flip attach' f) vs)
@@ -15,8 +15,11 @@ attach f vs = (foldr (++) []) $ map (attach'' f) vs
 
 
 
-gram = constructGrammar [('S',"aSa"),('S',"bSb"),('S',"a"),('S',"b"),('S',"c")]
+gram = constructGrammar [('S',"aSa"),('S',"bSb"),('S',"c")]
 mach = cfgToPda gram
+
+transTable :: TransitionGraph
+transTable = cfgToTransitionGraph gram
 
 main = do
   putStrLn . show $ computeMachineOnInput mach "aaa"
@@ -47,17 +50,20 @@ main = do
 
 
 
-palinGram = [('S',"aSa")
-            ,('S',"bSb")
-            ,('S',"a")
-            ,('S',"b")]
+d = delta mach 
+puts :: Show a => [a] -> IO ()
+puts = mapM_ (putStrLn . show)
+initS (n,stk) = Set.singleton (Q n,stk)
 
-cfgGram :: CFG
-cfgGram = constructGrammar palinGram
+--puts $ deltaStar' d "" $ init (0,"#")
 
-transTable :: TransitionGraph
-transTable = cfgToTransitionGraph cfgGram
 
-machine :: Machine
-machine = cfgToPda cfgGram
+d' c = delta' d (Just c)  -- d' 'a'
+rawDel c = composableDelta d c
+del' = delta' d Nothing
+ds' = deltaStar' d
+--puts $ compose' (map d' "babbab") (init (0,"#"))
+
+
+-- puts $ deltaStar' d "" (initS (0,"#"))
 

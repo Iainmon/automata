@@ -54,5 +54,5 @@ cfgToPda rules = M { q0 = start', qfs = Set.singleton final', delta = transGraph
 cfgToTransitionGraph :: CFG -> TransitionGraph
 cfgToTransitionGraph rules = transGraphFromList (defaultTransitions ++ grammarTransitions)
   where middle = Q 1
-        defaultTransitions = initialTransition middle : finalTransition middle : (Q 1,(Nothing,Just '#',""),Q 2) : map (loopTransRule middle) consumeTransitions
+        defaultTransitions = initialTransition middle : finalTransition middle : map (loopTransRule middle) consumeTransitions
         grammarTransitions = map (loopTransRule middle . prodRuleToTransRule) rules

@@ -6,7 +6,11 @@ x-ghc-framework-version: 8.6.4-13.14-3
 x-last-ide-version: HfM1.8.2
 
 executable PDARecognition
-    main-is: Main.hs
+    main-is: src/Main.hs
+    hs-source-dirs: 
+        .
+        src
+        tests
     other-modules:
         CFG
         Utilities

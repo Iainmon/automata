@@ -32,6 +32,9 @@ instance IsoListCont [] where
 squishSetList :: Ord a => [Set a] -> Set a 
 squishSetList = foldl Set.union Set.empty 
 
+squishSetSet :: Ord a => Set (Set a) -> Set a 
+squishSetSet = foldl Set.union Set.empty 
+
 compose' :: [a -> a] -> a -> a
 compose' [] a     = a
 compose' (f:fs) a = f (compose fs a)
@@ -45,12 +48,12 @@ compose (f:fs) a = compose fs (f a)
 (<&>) = Set.union
 
 
-showSet :: Show a => Set a -> String
-showSet s = "{ "++(intercalate ", " $ Set.toList s)++" }"
+showSet :: (Show a,Ord a) => Set a -> String
+showSet s = "{ "++(intercalate ", " $ map show (Set.toList s))++" }"
 
 fsetify :: Ord b => (a -> [b]) -> a -> Set b
 fsetify f = Set.fromList . f
 
-
-showTree t = showTreeWith (\k x -> show k ++ " : " ++ showSet x) False True t
-putsTree = putStrLn . showTree
+showMapTree :: (Ord a, Show k, Show a) => Map k (Set a) -> String
+showMapTree t = showTreeWith (\k x -> show k ++ " : " ++ showSet x) False True t
+putsTree m = putStrLn $ showMapTree m

@@ -32,8 +32,16 @@ type TransitionRule = (Maybe Char,Maybe Char,String)
 type Transition = (State,TransitionRule,State)
 type TransitionGraph = Map State (Set Transition)
 
-
 type TransitionFunction = Maybe Char -> PDAState -> [PDAState]
+
+type Σ = Char
+type Σ' = Maybe Σ
+type Q = State
+type Γ = Char
+type Γ' = [Γ]
+
+-- delta \subset Q x (Σ ⋃ {ε}) x Γ x Q x Γ*
+type TransitionFunction' = Q -> Σ -> Γ -> (Q,Γ')
 
 type StackEdit a = Stack a -> Stack a
 
@@ -62,11 +70,12 @@ transGraphFromList :: [Transition] -> TransitionGraph
 transGraphFromList trs = Map.fromListWith Set.union [(q,Set.singleton (q,tr,q')) | (q,tr,q') <- trs]
 
 applyTransitionRule :: TransitionRule -> Maybe Char -> Maybe (Stack Char -> Maybe (Stack Char))
+applyTransitionRule (Nothing,_,_) (Just _) = Nothing
 applyTransitionRule (Nothing,pop,push) _  = Just $ applyTransitionRule' pop push
 applyTransitionRule (Just _,_,_) Nothing  = Nothing
-applyTransitionRule (char,pop,push) char' = if char == char'
-                                            then Just $ applyTransitionRule' pop push
-                                            else Nothing
+applyTransitionRule (Just c,pop,push) (Just c') = if c == c'
+                                                  then Just $ applyTransitionRule' pop push
+                                                  else Nothing
                         
 applyTransitionRule' Nothing pu stack  = Just (pu ++ stack)
 applyTransitionRule' (Just c) pu stack = case stack of
@@ -74,7 +83,7 @@ applyTransitionRule' (Just c) pu stack = case stack of
                                           []   -> Nothing
 
 transToTransFunction :: Transition -> Maybe Char -> PDAState -> Maybe PDAState
-transToTransFunction (q,tr,q') char (_,stack) = applyTransitionRule tr char >>= flip ($) stack >>= return . pair q'
+transToTransFunction (q,tr,q') char (q1,stack) = if q1 == q then applyTransitionRule tr char >>= flip ($) stack >>= return . pair q' else Nothing
 
 possibleTransitions :: TransitionGraph -> State -> [Transition]
 possibleTransitions g q = Set.toList $ Map.findWithDefault Set.empty q g
@@ -151,7 +160,7 @@ runPDA :: Machine -> String -> [(String,Bool,[PDAState])]
 runPDA m s = map (\output -> (s,not . null $ output,output)) $ findDerivation m s
 
 composableDelta :: TransitionFunction -> Maybe Char -> Set PDAState -> Set PDAState
-composableDelta d c = foldl Set.union Set.empty . Set.map (Set.fromList . d c)
+composableDelta d c s = squishSetSet $ Set.map (Set.fromList . d c) s
 
 delta' :: TransitionFunction -> Maybe Char -> Set PDAState -> Set PDAState
 -- delta' d c s = let (del,del') = (composableDelta d,runEpsilonTransitions d) 
@@ -160,8 +169,8 @@ delta' :: TransitionFunction -> Maybe Char -> Set PDAState -> Set PDAState
 --                     in states' 
 delta' d c s = let (del,del') = (composableDelta d,runEpsilonTransitions d)
                 in case c of
-                    Nothing  -> Set.union (del' s) s
-                    (Just c) -> del (Just c) $ delta' d Nothing s
+                    Nothing  -> del' s
+                    (Just c) -> del (Just c) $ del' s
                     
           
 deltaStar' :: TransitionFunction -> String -> Set PDAState -> Set PDAState
@@ -170,17 +179,20 @@ deltaStar' :: TransitionFunction -> String -> Set PDAState -> Set PDAState
 --   where del = delta' d
 --         -- go (c:cs) 
 deltaStar' d str s = go s str -- foldl (flip ($)) s $ map (del . Just) str
-  where del = delta' d
-        go s' []     = runEpsilonTransitions d s' -- del Nothing s' -- s'
-        go s' (c:cs) = go (del (Just c) s') cs
+  where del = composableDelta d
+        del' = runEpsilonTransitions d
+        go s' []     = del' s' -- del Nothing s' -- s'
+        go s' (c:cs) = go (delta' d (Just c) s') cs
+        -- go s' (c:cs) = go (del (Just c) (del' s')) cs
 
 -- deltaStar'' d (a:x) s = let del = deltaStar' (d a)
 
 
 
 runEpsilonTransitions :: TransitionFunction -> Set PDAState -> Set PDAState
-runEpsilonTransitions d s = let (h,hs) = runEpsilonTransitions' d s
-                              in (squishSetList (h:hs)) <&> s
+runEpsilonTransitions d s = fst $ runEpsilonTransitions' d s
+                            -- let (h,hs) = runEpsilonTransitions' d s
+                            --   in (squishSetList (h:hs)) <&> s
                               -- in Set.union (foldl Set.union Set.empty hs) s
 
 -- runEpsilonTransitions d s = fst $ runEpsilonTransitions' d s
@@ -188,10 +200,14 @@ runEpsilonTransitions d s = let (h,hs) = runEpsilonTransitions' d s
 runEpsilonTransitions' :: TransitionFunction -> Set PDAState -> (Set PDAState,[Set PDAState])
 runEpsilonTransitions' d s = go (s,[]) -- go (del s,[])
   where del = composableDelta d Nothing
-        go (prev,prevs) = let newS = del prev 
-                            in if newS == Set.empty
-                               then (prev,reverse prevs)
-                               else if newS == prev 
-                                          then (newS,reverse $ prev : prevs)
-                                          else go (newS,prev : prevs)
+        go (prev,prevs) = let new = del prev <&> prev
+                          in if new == prev
+                             then (new,prev : prevs)
+                             else go (new,prev : prevs)
+          -- let newS = del prev 
+          --                   in if newS == Set.empty
+          --                      then (prev,reverse prevs)
+          --                      else if newS == prev 
+          --                                 then (newS,reverse $ prev : prevs)
+          --                                 else go (newS,prev : prevs)
 

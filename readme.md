@@ -18,3 +18,6 @@ mach = cfgToPda gram
 (True,"abacaba",fromList [(Q 1,"#"),(Q 2,"")])
 ```
 
+```
+stack repl
+```
